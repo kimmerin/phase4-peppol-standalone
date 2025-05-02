@@ -221,7 +221,14 @@ public final class PeppolSender
                                                                                         aMessageMetadata,
                                                                                         aState) -> {
                                                                     aSendingReport.setAS4ReceivedSignalMsg (aSignalMsg);
-                                                                  })
+//                                                                    if (aSignalMsg.hasErrorEntries ())
+//                                                                    {
+//                                                                      // TODO extract the errors
+//                                                                      aJson.add ("as4ResponseError", true);
+//                                                                    }
+//                                                                    else
+//                                                                      aJson.add ("as4ResponseError", false);
+                                          })
                                                                   .disableValidation ();
       final Wrapper <Phase4Exception> aCaughtEx = new Wrapper <> ();
       eResult = aBuilder.sendMessageAndCheckForReceipt (aCaughtEx::set);
@@ -233,8 +240,8 @@ public final class PeppolSender
         // In many simple cases, this might be the sender's participant ID
         final String sEndUserID = aSenderID.getURIEncoded ();
 
-        // TODO Enable Peppol Reporting when ready
-        if (false)
+//        // TODO Enable Peppol Reporting when ready
+//        if (false)
           aBuilder.createAndStorePeppolReportingItemAfterSending (sEndUserID);
       }
 
