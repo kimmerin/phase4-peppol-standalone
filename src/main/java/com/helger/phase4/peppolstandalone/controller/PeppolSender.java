@@ -203,7 +203,14 @@ public final class PeppolSender
                                                                                         aMessageMetadata,
                                                                                         aState) -> {
                                                                     aSendingReport.setAS4ReceivedSignalMsg (aSignalMsg);
-                                                                  })
+//                                                                    if (aSignalMsg.hasErrorEntries ())
+//                                                                    {
+//                                                                      // TODO extract the errors
+//                                                                      aJson.add ("as4ResponseError", true);
+//                                                                    }
+//                                                                    else
+//                                                                      aJson.add ("as4ResponseError", false);
+                                          })
                                                                   .disableValidation ();
       final Wrapper <Phase4Exception> aCaughtEx = new Wrapper <> ();
       eResult = aBuilder.sendMessageAndCheckForReceipt (aCaughtEx::set);
@@ -213,10 +220,10 @@ public final class PeppolSender
       {
         // TODO determine the enduser ID of the outbound message
         // In many simple cases, this might be the sender's participant ID
-        final String sEndUserID = "TODO";
+        final String sEndUserID = sReceiverID;
 
-        // TODO Enable when ready
-        if (false)
+//        // TODO Enable when ready
+//        if (false)
           aBuilder.createAndStorePeppolReportingItemAfterSending (sEndUserID);
       }
 
@@ -343,10 +350,10 @@ public final class PeppolSender
       {
         // TODO determine the enduser ID of the outbound message
         // In many simple cases, this might be the sender's participant ID
-        final String sEndUserID = "TODO";
+        final String sEndUserID = sMyPeppolSeatID;
 
-        // TODO Enable when ready
-        if (false)
+//        // TODO Enable when ready
+//        if (false)
           aBuilder.createAndStorePeppolReportingItemAfterSending (sEndUserID);
       }
 
