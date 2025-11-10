@@ -210,13 +210,6 @@ public class CustomPeppolIncomingSBDHandlerSPI implements IPhase4PeppolIncomingS
 
     // Last action in this method
     new Thread ( () -> {
-      // TODO If you have a way to determine the real end user of the message
-      // here, this might be a good opportunity to store the data for Peppol
-      // Reporting (do this asynchronously as the last activity)
-      // Note: this is a separate thread so that it does not block the sending
-      // of the positive receipt message
-
-      // TODO Peppol Reporting - enable if possible to be done in here
       try {
           LOGGER.info ("Creating Peppol Reporting Item and storing it");
 
