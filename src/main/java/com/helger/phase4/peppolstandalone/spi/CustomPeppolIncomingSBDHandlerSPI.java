@@ -28,7 +28,6 @@ import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Objects;
 
-
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -47,22 +46,18 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.slf4j.Logger;
 import org.unece.cefact.namespaces.sbdh.StandardBusinessDocument;
-import org.w3c.dom.Element;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 import com.helger.annotation.style.IsSPIImplementation;
 import com.helger.collection.commons.ICommonsList;
-import com.helger.http.header.HttpHeaderMap;
 import com.helger.config.IConfig;
+import com.helger.http.header.HttpHeaderMap;
 import com.helger.peppol.reporting.api.PeppolReportingItem;
 import com.helger.peppol.reporting.api.backend.PeppolReportingBackend;
 import com.helger.peppol.reporting.api.backend.PeppolReportingBackendException;
 import com.helger.peppol.sbdh.PeppolSBDHData;
-import com.helger.peppol.sbdh.payload.PeppolSBDHPayloadBinaryMarshaller;
-import com.helger.peppol.sbdh.spec12.BinaryContentType;
-import com.helger.peppol.sbdh.spec12.ObjectFactory;
 import com.helger.phase4.config.AS4Configuration;
 import com.helger.phase4.ebms3header.Ebms3Error;
 import com.helger.phase4.ebms3header.Ebms3UserMessage;
@@ -72,8 +67,8 @@ import com.helger.phase4.logging.Phase4LoggerFactory;
 import com.helger.phase4.peppol.servlet.IPhase4PeppolIncomingSBDHandlerSPI;
 import com.helger.phase4.peppol.servlet.Phase4PeppolServletMessageProcessorSPI;
 import com.helger.phase4.peppolstandalone.APConfig;
-import com.helger.sbdh.SBDMarshaller;
 import com.helger.phase4.util.Phase4Exception;
+import com.helger.sbdh.SBDMarshaller;
 import com.helger.security.certificate.CertificateHelper;
 import com.helger.xml.XMLHelper;
 import com.helger.xml.serialize.read.DOMReader;
