@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Philip Helger (www.helger.com)
+ * Copyright (C) 2023-2026 Philip Helger (www.helger.com)
  * philip[at]helger[dot]com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -44,14 +45,16 @@ import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.unece.cefact.namespaces.sbdh.StandardBusinessDocument;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
+import com.helger.annotation.Nonempty;
 import com.helger.annotation.style.IsSPIImplementation;
-import com.helger.collection.commons.ICommonsList;
 import com.helger.config.IConfig;
 import com.helger.http.header.HttpHeaderMap;
 import com.helger.peppol.reporting.api.PeppolReportingItem;
@@ -59,11 +62,12 @@ import com.helger.peppol.reporting.api.backend.PeppolReportingBackend;
 import com.helger.peppol.reporting.api.backend.PeppolReportingBackendException;
 import com.helger.peppol.sbdh.PeppolSBDHData;
 import com.helger.phase4.config.AS4Configuration;
-import com.helger.phase4.ebms3header.Ebms3Error;
 import com.helger.phase4.ebms3header.Ebms3UserMessage;
+import com.helger.phase4.error.AS4ErrorList;
 import com.helger.phase4.incoming.IAS4IncomingMessageMetadata;
 import com.helger.phase4.incoming.IAS4IncomingMessageState;
 import com.helger.phase4.logging.Phase4LoggerFactory;
+import com.helger.phase4.messaging.EAS4MessageMode;
 import com.helger.phase4.peppol.servlet.IPhase4PeppolIncomingSBDHandlerSPI;
 import com.helger.phase4.peppol.servlet.Phase4PeppolServletMessageProcessorSPI;
 import com.helger.phase4.peppolstandalone.APConfig;
@@ -72,8 +76,6 @@ import com.helger.sbdh.SBDMarshaller;
 import com.helger.security.certificate.CertificateHelper;
 import com.helger.xml.XMLHelper;
 import com.helger.xml.serialize.read.DOMReader;
-
-import jakarta.annotation.Nonnull;
 
 /**
  * This is a way of handling incoming Peppol messages
@@ -126,14 +128,14 @@ public class CustomPeppolIncomingSBDHandlerSPI implements IPhase4PeppolIncomingS
     
   private static final Logger LOGGER = Phase4LoggerFactory.getLogger (CustomPeppolIncomingSBDHandlerSPI.class);
 
-  public void handleIncomingSBD (@Nonnull final IAS4IncomingMessageMetadata aMessageMetadata,
-                                 @Nonnull final HttpHeaderMap aHeaders,
-                                 @Nonnull final Ebms3UserMessage aUserMessage,
-                                 @Nonnull final byte [] aSBDBytes,
-                                 @Nonnull final StandardBusinessDocument aSBD,
-                                 @Nonnull final PeppolSBDHData aPeppolSBD,
-                                 @Nonnull final IAS4IncomingMessageState aIncomingState,
-                                 @Nonnull final ICommonsList <Ebms3Error> aProcessingErrorMessages) throws Exception
+  public void handleIncomingSBD (@NonNull final IAS4IncomingMessageMetadata aMessageMetadata,
+                                 @NonNull final HttpHeaderMap aHeaders,
+                                 @NonNull final Ebms3UserMessage aUserMessage,
+                                 @NonNull final byte [] aSBDBytes,
+                                 @NonNull final StandardBusinessDocument aSBD,
+                                 @NonNull final PeppolSBDHData aPeppolSBD,
+                                 @NonNull final IAS4IncomingMessageState aIncomingState,
+                                 @NonNull final AS4ErrorList aProcessingErrorMessages) throws Exception
   {
     if (!APConfig.isReceivingEnabled ())
     {
@@ -204,6 +206,7 @@ public class CustomPeppolIncomingSBDHandlerSPI implements IPhase4PeppolIncomingS
 //        }
 //      }
 //    }
+    //
 
     // In case there is an error, throw any Exception -> will lead to an AS4
     // Error Message to the sender
@@ -357,4 +360,20 @@ public class CustomPeppolIncomingSBDHandlerSPI implements IPhase4PeppolIncomingS
         
         os.flush();
     }
+
+  public void processAS4ResponseMessage (@NonNull final IAS4IncomingMessageMetadata aIncomingMessageMetadata,
+                                         @NonNull final IAS4IncomingMessageState aIncomingState,
+                                         @NonNull @Nonempty final String sResponseMessageID,
+                                         final byte @Nullable [] aResponseBytes,
+                                         final boolean bResponsePayloadIsAvailable,
+                                         @NonNull final AS4ErrorList aEbmsErrorMessages)
+  {
+    if (aIncomingMessageMetadata.getMode () == EAS4MessageMode.REQUEST)
+      LOGGER.info ("AS4 response on an inbound message");
+    else
+      LOGGER.info ("AS4 response on an outbound message");
+
+    if (bResponsePayloadIsAvailable)
+      LOGGER.info ("  Response content: " + new String (aResponseBytes, StandardCharsets.UTF_8));
+  }
 }

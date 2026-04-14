@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Philip Helger (www.helger.com)
+ * Copyright (C) 2023-2026 Philip Helger (www.helger.com)
  * philip[at]helger[dot]com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,42 +16,42 @@
  */
 package com.helger.phase4.peppolstandalone.servlet;
 
+import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.helger.base.string.StringHelper;
 import com.helger.base.url.URLHelper;
-import com.helger.http.EHttpMethod;
 import com.helger.phase4.crypto.AS4CryptoFactoryInMemoryKeyStore;
 import com.helger.phase4.incoming.AS4IncomingProfileSelectorConstant;
 import com.helger.phase4.incoming.AS4RequestHandler;
 import com.helger.phase4.incoming.mgr.AS4ProfileSelector;
 import com.helger.phase4.model.pmode.resolve.AS4DefaultPModeResolver;
+import com.helger.phase4.peppol.servlet.Phase4PeppolAS4Servlet;
 import com.helger.phase4.peppol.servlet.Phase4PeppolDefaultReceiverConfiguration;
 import com.helger.phase4.peppol.servlet.Phase4PeppolReceiverConfiguration;
 import com.helger.phase4.peppol.servlet.Phase4PeppolServletMessageProcessorSPI;
 import com.helger.phase4.servlet.AS4UnifiedResponse;
-import com.helger.phase4.servlet.AS4XServletHandler;
-import com.helger.phase4.servlet.IAS4ServletRequestHandlerCustomizer;
-import com.helger.security.certificate.CertificateHelper;
+import com.helger.security.certificate.CertificateDecodeHelper;
 import com.helger.smpclient.peppol.SMPClientReadOnly;
 import com.helger.web.scope.IRequestWebScopeWithoutResponse;
-import com.helger.xservlet.AbstractXServlet;
 
-import jakarta.annotation.Nonnull;
-
-public class SpringBootAS4Servlet extends AbstractXServlet
+public class SpringBootAS4Servlet extends Phase4PeppolAS4Servlet
 {
+  private static final Logger LOGGER = LoggerFactory.getLogger (SpringBootAS4Servlet.class);
+
   public SpringBootAS4Servlet ()
   {
-    // Multipart is handled specifically inside
-    settings ().setMultipartEnabled (false);
-
-    // The main XServlet handler to handle the inbound request
-    final AS4XServletHandler hdl = new AS4XServletHandler ();
-    hdl.setRequestHandlerCustomizer (new IAS4ServletRequestHandlerCustomizer ()
+    super (new Phase4PeppolServletRequestHandlerCustomizer ()
     {
-      public void customizeBeforeHandling (@Nonnull final IRequestWebScopeWithoutResponse aRequestScope,
-                                           @Nonnull final AS4UnifiedResponse aUnifiedResponse,
-                                           @Nonnull final AS4RequestHandler aRequestHandler)
+      @Override
+      public void customizeBeforeHandling (@NonNull final IRequestWebScopeWithoutResponse aRequestScope,
+                                           @NonNull final AS4UnifiedResponse aUnifiedResponse,
+                                           @NonNull final AS4RequestHandler aRequestHandler)
       {
+        // Parent always first
+        super.customizeBeforeHandling (aRequestScope, aUnifiedResponse, aRequestHandler);
+
         final AS4CryptoFactoryInMemoryKeyStore aCryptoFactory = ServletConfig.getCryptoFactoryToUse ();
 
         // This method refers to the outer static method
@@ -90,10 +90,11 @@ public class SpringBootAS4Servlet extends AbstractXServlet
                                                                   .receiverCheckEnabled (true)
                                                                   .serviceMetadataProvider (new SMPClientReadOnly (URLHelper.getAsURI ("http://smp-prod.example.org")))
                                                                   .as4EndpointUrl ("https://ap-prod.example.org/as4")
-                                                                  .apCertificate (CertificateHelper.convertStringToCertficateOrNull ("....Public Prod AP Cert...."))
+                                                                  .apCertificate (new CertificateDecodeHelper ().source ("....Public Prod AP Cert....")
+                                                                                                                .pemEncoded (true)
+                                                                                                                .getDecodedOrNull ())
                                                                   .sbdhIdentifierFactoryPeppol ()
                                                                   .performSBDHValueChecks (Phase4PeppolDefaultReceiverConfiguration.isPerformSBDHValueChecks ())
-                                                                  .checkSBDHForMandatoryCountryC1 (Phase4PeppolDefaultReceiverConfiguration.isCheckSBDHForMandatoryCountryC1 ())
                                                                   .checkSigningCertificateRevocation (Phase4PeppolDefaultReceiverConfiguration.isCheckSigningCertificateRevocation ())
                                                                   .build ();
           }
@@ -103,10 +104,11 @@ public class SpringBootAS4Servlet extends AbstractXServlet
                                                                   .receiverCheckEnabled (true)
                                                                   .serviceMetadataProvider (new SMPClientReadOnly (URLHelper.getAsURI ("http://smp-test.example.org")))
                                                                   .as4EndpointUrl ("https://ap-test.example.org/as4")
-                                                                  .apCertificate (CertificateHelper.convertStringToCertficateOrNull ("....Public Test AP Cert...."))
+                                                                  .apCertificate (new CertificateDecodeHelper ().source ("....Public Test AP Cert....")
+                                                                                                                .pemEncoded (true)
+                                                                                                                .getDecodedOrNull ())
                                                                   .sbdhIdentifierFactoryPeppol ()
                                                                   .performSBDHValueChecks (Phase4PeppolDefaultReceiverConfiguration.isPerformSBDHValueChecks ())
-                                                                  .checkSBDHForMandatoryCountryC1 (Phase4PeppolDefaultReceiverConfiguration.isCheckSBDHForMandatoryCountryC1 ())
                                                                   .checkSigningCertificateRevocation (Phase4PeppolDefaultReceiverConfiguration.isCheckSigningCertificateRevocation ())
                                                                   .build ();
           }
@@ -115,17 +117,28 @@ public class SpringBootAS4Servlet extends AbstractXServlet
           aRequestHandler.getProcessorOfType (Phase4PeppolServletMessageProcessorSPI.class)
                          .setReceiverCheckData (aReceiverCheckData);
         }
+
+        if (false)
+        {
+          // Install a global consumer that is called every time an inbound message triggers an AS4
+          // Error Message
+          aRequestHandler.setErrorConsumer ( (aMessageMetdata, aIncomingState, aEbmsErrors, aAS4ErrorMsg) -> {
+            LOGGER.error ("!!! An AS4 error was created for incoming request " +
+                          aMessageMetdata.getIncomingUniqueID ());
+            LOGGER.error ("   Found " + aEbmsErrors.size () + " errors");
+            LOGGER.error ("   The created AS4 error message has the AS4 Message ID " + aAS4ErrorMsg.getMessagingID ());
+          });
+        }
       }
 
-      public void customizeAfterHandling (@Nonnull final IRequestWebScopeWithoutResponse aRequestScope,
-                                          @Nonnull final AS4UnifiedResponse aUnifiedResponse,
-                                          @Nonnull final AS4RequestHandler aRequestHandler)
+      @Override
+      public void customizeAfterHandling (@NonNull final IRequestWebScopeWithoutResponse aRequestScope,
+                                          @NonNull final AS4UnifiedResponse aUnifiedResponse,
+                                          @NonNull final AS4RequestHandler aRequestHandler)
       {
-        // empty
+        // Parent always last
+        super.customizeAfterHandling (aRequestScope, aUnifiedResponse, aRequestHandler);
       }
     });
-
-    // HTTP POST only
-    handlerRegistry ().registerHandler (EHttpMethod.POST, hdl);
   }
 }

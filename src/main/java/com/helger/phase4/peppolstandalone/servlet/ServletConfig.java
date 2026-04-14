@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Philip Helger (www.helger.com)
+ * Copyright (C) 2023-2026 Philip Helger (www.helger.com)
  * philip[at]helger[dot]com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,14 +19,13 @@ package com.helger.phase4.peppolstandalone.servlet;
 import java.io.File;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
-import java.time.YearMonth;
 
+import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import com.helger.base.debug.GlobalDebug;
 import com.helger.base.exception.InitializationException;
@@ -52,7 +51,6 @@ import com.helger.phase4.logging.Phase4LoggerFactory;
 import com.helger.phase4.mgr.MetaAS4Manager;
 import com.helger.phase4.peppol.servlet.Phase4PeppolDefaultReceiverConfiguration;
 import com.helger.phase4.peppolstandalone.APConfig;
-import com.helger.phase4.peppolstandalone.reporting.AppReportingHelper;
 import com.helger.phase4.profile.peppol.AS4PeppolProfileRegistarSPI;
 import com.helger.phase4.profile.peppol.PeppolCRLDownloader;
 import com.helger.phase4.profile.peppol.Phase4PeppolHttpClientSettings;
@@ -65,7 +63,6 @@ import com.helger.web.scope.mgr.WebScopeManager;
 import com.helger.xservlet.requesttrack.RequestTrackerSettings;
 
 import jakarta.activation.CommandMap;
-import jakarta.annotation.Nonnull;
 import jakarta.annotation.PreDestroy;
 import jakarta.servlet.ServletContext;
 
@@ -79,7 +76,7 @@ public class ServletConfig
    *
    * @return the {@link IAS4CryptoFactory} to use. May not be <code>null</code>.
    */
-  @Nonnull
+  @NonNull
   public static AS4CryptoFactoryInMemoryKeyStore getCryptoFactoryToUse ()
   {
     final AS4CryptoFactoryConfiguration ret = AS4CryptoFactoryConfiguration.getDefaultInstance ();
@@ -101,7 +98,7 @@ public class ServletConfig
     return bean;
   }
 
-  private void _init (@Nonnull final ServletContext aSC)
+  private void _init (@NonNull final ServletContext aSC)
   {
     // Do it only once
     if (!WebScopeManager.isGlobalScopePresent ())
@@ -113,11 +110,15 @@ public class ServletConfig
     }
   }
 
-  private static void _initGlobalSettings (@Nonnull final ServletContext aSC)
+  private static void _initGlobalSettings (@NonNull final ServletContext aSC)
   {
     // Logging: JUL to SLF4J
     SLF4JBridgeHandler.removeHandlersForRootLogger ();
     SLF4JBridgeHandler.install ();
+
+    // Order matters
+    GlobalDebug.setProductionModeDirect (AS4Configuration.isGlobalProduction ());
+    GlobalDebug.setDebugModeDirect (AS4Configuration.isGlobalDebug ());
 
     if (GlobalDebug.isDebugMode ())
     {
@@ -128,8 +129,8 @@ public class ServletConfig
     HttpDebugger.setEnabled (false);
 
     // Sanity check
-    if (CommandMap.getDefaultCommandMap ().createDataContentHandler (CMimeType.MULTIPART_RELATED.getAsString ()) ==
-        null)
+    if (CommandMap.getDefaultCommandMap ()
+                  .createDataContentHandler (CMimeType.MULTIPART_RELATED.getAsString ()) == null)
     {
       throw new IllegalStateException ("No DataContentHandler for MIME Type '" +
                                        CMimeType.MULTIPART_RELATED.getAsString () +
@@ -171,7 +172,7 @@ public class ServletConfig
     // resources, it can be configured here
     {
       final Phase4PeppolHttpClientSettings aHCS = new Phase4PeppolHttpClientSettings ();
-      // TODO eventually configure an outbound HTTP proxy here as well
+      APConfig.applyHttpProxySettings (aHCS);
       PeppolCRLDownloader.setAsDefaultCRLCache (aHCS);
     }
 
@@ -209,13 +210,12 @@ public class ServletConfig
     {
       // TODO Change from "true" to "false" once you have a Peppol
       // certificate so that an exception is thrown
-      if (true)
-        LOGGER.error ("The provided certificate is not a valid Peppol certificate. Check result: " + eCheckResult);
-      else
+      if (false)
       {
-        throw new InitializationException ("The provided certificate is not a Peppol certificate. Check result: " +
+        throw new InitializationException ("The provided certificate is not a Peppol AP certificate. Check result: " +
                                            eCheckResult);
       }
+      LOGGER.error ("The provided certificate is not a valid Peppol AP certificate. Check result: " + eCheckResult);
     }
     else
       LOGGER.info ("Successfully checked that the provided Peppol AP certificate is valid.");
@@ -232,7 +232,9 @@ public class ServletConfig
       // To process the message even though the receiver is not registered in
       // our AP
       Phase4PeppolDefaultReceiverConfiguration.setReceiverCheckEnabled (true);
-      Phase4PeppolDefaultReceiverConfiguration.setSMPClient (new SMPClientReadOnly (URLHelper.getAsURI (sSMPURL)));
+      final SMPClientReadOnly aReceiverCheckSMPClient = new SMPClientReadOnly (URLHelper.getAsURI (sSMPURL));
+      APConfig.applyHttpProxySettings (aReceiverCheckSMPClient.httpClientSettings ());
+      Phase4PeppolDefaultReceiverConfiguration.setSMPClient (aReceiverCheckSMPClient);
       Phase4PeppolDefaultReceiverConfiguration.setAS4EndpointURL (sAPURL);
       Phase4PeppolDefaultReceiverConfiguration.setAPCertificate (aAPCert);
       LOGGER.info ("phase4 Peppol receiver checks are enabled");
@@ -246,21 +248,6 @@ public class ServletConfig
     // Initialize the Reporting Backend only once
     if (PeppolReportingBackend.getBackendService ().initBackend (APConfig.getConfig ()).isFailure ())
       throw new InitializationException ("Failed to init Peppol Reporting Backend Service");
-  }
-
-  // At 05:00 AM, on day 2 of the month
-  @Scheduled (cron = "0 0 5 2 * *")
-  public void sendPeppolReportingMessages ()
-  {
-    if (APConfig.isSchedulePeppolReporting ())
-    {
-      LOGGER.info ("Running scheduled creation and sending of Peppol Reporting messages");
-      // Use the previous month
-      final YearMonth aYearMonth = YearMonth.now ().minusMonths (1);
-      AppReportingHelper.createAndSendPeppolReports (aYearMonth);
-    }
-    else
-      LOGGER.warn ("Creating and sending Peppol Reports is disabled in the configuration");
   }
 
   /**

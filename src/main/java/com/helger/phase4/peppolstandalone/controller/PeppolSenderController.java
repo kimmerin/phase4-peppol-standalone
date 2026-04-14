@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Philip Helger (www.helger.com)
+ * Copyright (C) 2023-2026 Philip Helger (www.helger.com)
  * philip[at]helger[dot]com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@ package com.helger.phase4.peppolstandalone.controller;
 
 import org.slf4j.Logger;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,7 +32,7 @@ import com.helger.peppol.sbdh.PeppolSBDHDataReadException;
 import com.helger.peppol.sbdh.PeppolSBDHDataReader;
 import com.helger.peppol.security.PeppolTrustedCA;
 import com.helger.peppol.servicedomain.EPeppolNetwork;
-import com.helger.peppol.sml.ESML;
+import com.helger.peppol.sml.ISMLInfo;
 import com.helger.peppolid.factory.PeppolIdentifierFactory;
 import com.helger.phase4.logging.Phase4LoggerFactory;
 import com.helger.phase4.peppol.Phase4PeppolSendingReport;
@@ -48,6 +49,12 @@ public class PeppolSenderController
 {
   static final String HEADER_X_TOKEN = "X-Token";
   private static final Logger LOGGER = Phase4LoggerFactory.getLogger (PeppolSenderController.class);
+
+  @GetMapping (path = "/phase4ping", produces = MediaType.TEXT_PLAIN_VALUE)
+  public String ping ()
+  {
+    return "pong";
+  }
 
   @PostMapping (path = "/sendas4/{senderId}/{receiverId}/{docTypeId}/{processId}/{countryC1}",
                 produces = MediaType.APPLICATION_JSON_VALUE)
@@ -68,18 +75,19 @@ public class PeppolSenderController
     if (StringHelper.isEmpty (xtoken))
     {
       LOGGER.error ("The specific token header is missing");
-      throw new HttpForbiddenException ();
+      throw new HttpForbiddenException ("AS4 Sender: token is missing");
     }
     if (!xtoken.equals (APConfig.getPhase4ApiRequiredToken ()))
     {
       LOGGER.error ("The specified token value does not match the configured required token");
-      throw new HttpForbiddenException ();
+      throw new HttpForbiddenException ("AS4 Sender: token is invalid");
     }
 
+    // Make Network decisions
     final EPeppolNetwork eStage = APConfig.getPeppolStage ();
-    final ESML eSML = eStage.isProduction () ? ESML.DIGIT_PRODUCTION : ESML.DIGIT_TEST;
-    final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP ()
-                                                          : PeppolTrustedCA.peppolTestAP ();
+    final ISMLInfo aSML = eStage.getSMLInfo ();
+    final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP () : PeppolTrustedCA
+                                                                                                                   .peppolTestAP ();
     LOGGER.info ("Trying to send Peppol " +
                  eStage.name () +
                  " message from '" +
@@ -93,7 +101,7 @@ public class PeppolSenderController
                  "' for '" +
                  countryC1 +
                  "'");
-    final Phase4PeppolSendingReport aSendingReport = PeppolSender.sendPeppolMessageCreatingSbdh (eSML,
+    final Phase4PeppolSendingReport aSendingReport = PeppolSender.sendPeppolMessageCreatingSbdh (aSML,
                                                                                                  aAPCA,
                                                                                                  aPayloadBytes,
                                                                                                  senderId,
@@ -106,9 +114,13 @@ public class PeppolSenderController
     return aSendingReport.getAsJsonString ();
   }
 
-  @PostMapping (path = "/sendsbdh", produces = MediaType.APPLICATION_JSON_VALUE)
-  public String sendPeppolSbdhMessage (@RequestHeader (name = HEADER_X_TOKEN, required = true) final String xtoken,
-                                       @RequestBody final byte [] aPayloadBytes)
+  @PostMapping (path = "/sendas4-facturx/{senderId}/{receiverId}/{countryC1}",
+                produces = MediaType.APPLICATION_JSON_VALUE)
+  public String sendPeppolFacturX (@RequestHeader (name = HEADER_X_TOKEN, required = true) final String xtoken,
+                                   @RequestBody final byte [] aPayloadBytes,
+                                   @PathVariable final String senderId,
+                                   @PathVariable final String receiverId,
+                                   @PathVariable final String countryC1)
   {
     if (!APConfig.isSendingEnabled ())
     {
@@ -128,10 +140,56 @@ public class PeppolSenderController
     }
 
     final EPeppolNetwork eStage = APConfig.getPeppolStage ();
-    final ESML eSML = eStage.isProduction () ? ESML.DIGIT_PRODUCTION : ESML.DIGIT_TEST;
-    final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP ()
-                                                          : PeppolTrustedCA.peppolTestAP ();
-    final Phase4PeppolSendingReport aSendingReport = new Phase4PeppolSendingReport (eSML);
+    final ISMLInfo aSMLInfo = eStage.getSMLInfo ();
+    final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP () : PeppolTrustedCA
+                                                                                                                   .peppolTestAP ();
+    LOGGER.info ("Trying to send Peppol " +
+                 eStage.name () +
+                 " message from '" +
+                 senderId +
+                 "' to '" +
+                 receiverId +
+                 "' using Factur-X for '" +
+                 countryC1 +
+                 "'");
+    final Phase4PeppolSendingReport aSendingReport = PeppolSender.sendPeppolFacturXMessageCreatingSbdh (aSMLInfo,
+                                                                                                        aAPCA,
+                                                                                                        aPayloadBytes,
+                                                                                                        senderId,
+                                                                                                        receiverId,
+                                                                                                        countryC1);
+
+    // Return as JSON
+    return aSendingReport.getAsJsonString ();
+  }
+
+  @PostMapping (path = "/sendsbdh", produces = MediaType.APPLICATION_JSON_VALUE)
+  public String sendPeppolSbdhMessage (@RequestHeader (name = HEADER_X_TOKEN, required = true) final String xtoken,
+                                       @RequestBody final byte [] aPayloadBytes)
+  {
+    if (!APConfig.isSendingEnabled ())
+    {
+      LOGGER.info ("Peppol AP sending is disabled");
+      throw new HttpNotFoundException ();
+    }
+
+    if (StringHelper.isEmpty (xtoken))
+    {
+      LOGGER.error ("The specific token header is missing");
+      throw new HttpForbiddenException ("AS4 Sender: token is missing");
+    }
+    if (!xtoken.equals (APConfig.getPhase4ApiRequiredToken ()))
+    {
+      LOGGER.error ("The specified token value does not match the configured required token");
+      throw new HttpForbiddenException ("AS4 Sender: token is invalid");
+    }
+
+    // Make Network decisions
+    final EPeppolNetwork eStage = APConfig.getPeppolStage ();
+    final ISMLInfo aSMLInfo = eStage.getSMLInfo ();
+    final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP () : PeppolTrustedCA
+                                                                                                                   .peppolTestAP ();
+    final Phase4PeppolSendingReport aSendingReport = new Phase4PeppolSendingReport (aSMLInfo);
 
     final PeppolSBDHData aData;
     try
@@ -174,7 +232,7 @@ public class PeppolSenderController
                  sCountryCodeC1 +
                  "'");
 
-    PeppolSender.sendPeppolMessagePredefinedSbdh (aData, eSML, aAPCA, aSendingReport);
+    PeppolSender.sendPeppolMessagePredefinedSbdh (aData, aSMLInfo, aAPCA, aSendingReport);
 
     // Return result JSON
     return aSendingReport.getAsJsonString ();

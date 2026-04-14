@@ -2,6 +2,14 @@
 
 This an example standalone implementation of [phase4](https://github.com/phax/phase4) for the Peppol Network.
 
+**== == == == == == == == ==**
+
+## phoss-ap
+
+Please see [phoss-ap](https://github.com/phax/phoss-ap) for a complete standalone Peppol Access Point (AP) based on [phase4](https://github.com/phax/phase4) and Spring Boot 4.x
+
+**== == == == == == == == ==**
+
 This is a template application and NOT ready for production use, because you need to take decisions and add some code.
 Of course phase4 itself is ready for production use - see a list of [known phase4 users](https://github.com/phax/phase4/wiki/Known-Users) that have agreed to be publicly listed.
 
@@ -131,7 +139,7 @@ The following configuration properties are contained by default:
 If you run it with `java -jar target/phase4-peppol-standalone-x.y.z.jar` it will spawn a local Tomcat at port `8080` and you can access it via `http://localhost:8080`.
 It should show a small introduction page. The `/as4` servlet itself has no user interface.
 
-In case you run the application behind an HTTP proxy, modify the settings in the configuration file (`http.proxy.*`).
+In case you run the application behind an HTTP proxy, modify the settings in the configuration file (`http.proxy.*`) and check the code for respective `TODO` comments.
 
 In case you don't like port 8080, also change it in the configuration file.
 

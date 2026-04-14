@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Philip Helger (www.helger.com)
+ * Copyright (C) 2023-2026 Philip Helger (www.helger.com)
  * philip[at]helger[dot]com
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.YearMonth;
 
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 
 import com.helger.base.enforce.ValueEnforcer;
@@ -47,7 +49,7 @@ import com.helger.peppol.reportingsupport.file.IPeppolReportStorageFilenameProvi
 import com.helger.peppol.reportingsupport.file.PeppolReportStorageFileXML;
 import com.helger.peppol.security.PeppolTrustedCA;
 import com.helger.peppol.servicedomain.EPeppolNetwork;
-import com.helger.peppol.sml.ESML;
+import com.helger.peppol.sml.ISMLInfo;
 import com.helger.phase4.config.AS4Configuration;
 import com.helger.phase4.logging.Phase4LoggerFactory;
 import com.helger.phase4.peppol.Phase4PeppolSendingReport;
@@ -55,9 +57,6 @@ import com.helger.phase4.peppolstandalone.APConfig;
 import com.helger.phase4.peppolstandalone.controller.HttpForbiddenException;
 import com.helger.phase4.peppolstandalone.controller.PeppolSender;
 import com.helger.security.certificate.TrustedCAChecker;
-
-import jakarta.annotation.Nonnull;
-import jakarta.annotation.Nullable;
 
 /**
  * Helper class for report generation
@@ -68,7 +67,7 @@ public final class AppReportingHelper
 {
   private static final Logger LOGGER = Phase4LoggerFactory.getLogger (AppReportingHelper.class);
 
-  @Nonnull
+  @NonNull
   public static YearMonth getValidYearMonthInAPI (final int nYear, final int nMonth)
   {
     if (nYear < 2024)
@@ -86,7 +85,7 @@ public final class AppReportingHelper
   }
 
   @Nullable
-  public static TransactionStatisticsReportType createTSR (@Nonnull final YearMonth aYearMonth) throws PeppolReportingBackendException
+  public static TransactionStatisticsReportType createTSR (@NonNull final YearMonth aYearMonth) throws PeppolReportingBackendException
   {
     LOGGER.info ("Trying to create Peppol Reporting TSR for " + aYearMonth);
 
@@ -109,7 +108,7 @@ public final class AppReportingHelper
   }
 
   @Nullable
-  public static EndUserStatisticsReportType createEUSR (@Nonnull final YearMonth aYearMonth) throws PeppolReportingBackendException
+  public static EndUserStatisticsReportType createEUSR (@NonNull final YearMonth aYearMonth) throws PeppolReportingBackendException
   {
     LOGGER.info ("Trying to create Peppol Reporting EUSR for " + aYearMonth);
 
@@ -137,7 +136,7 @@ public final class AppReportingHelper
    * @param aYearMonth
    *        The reporting period to use. May not be <code>null</code>.
    */
-  public static void createAndSendPeppolReports (@Nonnull final YearMonth aYearMonth)
+  public static void createAndSendPeppolReports (@NonNull final YearMonth aYearMonth)
   {
     ValueEnforcer.notNull (aYearMonth, "YearMonth");
 
@@ -148,9 +147,9 @@ public final class AppReportingHelper
     final IPeppolReportSenderCallback aPeppolSender = (aDocTypeID, aProcessID, sMessagePayload) -> {
       // Make Network decisions
       final EPeppolNetwork eStage = APConfig.getPeppolStage ();
-      final ESML eSML = eStage.isProduction () ? ESML.DIGIT_PRODUCTION : ESML.DIGIT_TEST;
-      final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP () : PeppolTrustedCA
-                                                                                                                     .peppolTestAP ();
+      final ISMLInfo aSMLInfo = eStage.getSMLInfo ();
+      final TrustedCAChecker aAPCA = eStage.isProduction () ? PeppolTrustedCA.peppolProductionAP ()
+                                                            : PeppolTrustedCA.peppolTestAP ();
       // Sender: your company participant ID
       final String sSenderID = APConfig.getMyPeppolReportingSenderID ();
       if (StringHelper.isEmpty (sSenderID))
@@ -165,7 +164,7 @@ public final class AppReportingHelper
         throw new IllegalStateException ("Invalid country code of Peppol owner is defined: '" + sCountryC1 + "'");
 
       // Returns the sending report
-      final Phase4PeppolSendingReport aSendingReport = PeppolSender.sendPeppolMessageCreatingSbdh (eSML,
+      final Phase4PeppolSendingReport aSendingReport = PeppolSender.sendPeppolMessageCreatingSbdh (aSMLInfo,
                                                                                                    aAPCA,
                                                                                                    sMessagePayload.getBytes (StandardCharsets.UTF_8),
                                                                                                    sSenderID,
