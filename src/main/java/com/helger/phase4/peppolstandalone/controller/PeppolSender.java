@@ -223,8 +223,8 @@ public final class PeppolSender
         // In many simple cases, this might be the sender's participant ID
         final String sEndUserID = aSenderID.getURIEncoded ();
 
-        // TODO Enable Peppol Reporting when ready
-        if (false)
+//        // TODO Enable Peppol Reporting when ready
+//        if (false)
           aBuilder.createAndStorePeppolReportingItemAfterSending (sEndUserID);
       }
 
